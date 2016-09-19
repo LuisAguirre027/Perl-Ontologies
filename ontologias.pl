@@ -87,5 +87,5 @@ print "\n---------GRAFO---------\n$graph\n-----------------------\n";
 print pertenece("platon", "persona legal"); #1
 print "\n";
 
-print pertenece("platon", "persona juridica"); #1
+print pertenece("platon", "persona juridica"); #0
 print "\n";
