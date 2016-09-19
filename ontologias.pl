@@ -38,10 +38,11 @@ sub consulta{
 		foreach my $v1 ($graph->vertices){
 			foreach my $v2 ($graph->vertices){
 
-				if ( ( $graph->get_edge_attribute($v1,$v2,"tipo") ~~ $_[2]) #smart match
-				and  ($graph->is_reachable($_[0],$v1))
-				and  ($graph->is_reachable($v2,$_[1])) ){
-
+				if ( 
+					($graph->is_reachable($_[0],$v1))
+				and ($graph->is_reachable($v2,$_[1])) 
+				and ( $graph->get_edge_attribute($v1,$v2,"tipo") ~~ $_[2]) #smart match
+				){
 					return 1;
 				}
 			}
@@ -63,11 +64,28 @@ sub hace{
 	return consulta($_[0],$_[1],"puede")
 }
 
-es("luis","tecnico");
-es("tecnico","profesional");
-puede("profesional","ejercer");
+es("platon","humano");
+es("humano","persona natural");
+es("persona natural","persona legal");
+es("persona juridica","persona legal");
+es("humano","bipedo");
+es("bipedo","mamifero");
 
-print "$graph\n\n";
+tiene("persona legal","derechos");
+tiene("persona legal","deberes");
+tiene("persona juridica","rif");
+tiene("persona natural","ci");
 
-print hace("luis", "ejercer"); #0
+puede("mamifero","lactar");
+puede("bipedo","caminar erguido");
+puede("humano","razonar");
+
+
+
+print "\n---------GRAFO---------\n$graph\n-----------------------\n";
+
+print pertenece("platon", "persona legal"); #1
+print "\n";
+
+print pertenece("platon", "persona juridica"); #1
 print "\n";
