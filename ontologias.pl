@@ -64,6 +64,21 @@ sub hace{
 	return consulta($_[0],$_[1],"puede")
 }
 
+my $filename = 'data.txt';
+open(my $fh, '<:encoding(UTF-8)', $filename)
+  or die "Could not open file '$filename' $!";
+ 
+while (my $row = <$fh>) {
+  chomp $row;
+  next if $row =~ /^\s*$/;
+  my @var = split /[(,).\n]+/, $row;
+  #$var[0]($var[1],$var[2]);
+  # start a new scope to keep the effect of "no strict" small
+  my $generic=$var[0];
+  no strict 'refs';
+  &$generic($var[1], $var[2]);
+ }
+=pod
 es("platon","humano");
 es("humano","persona natural");
 es("persona natural","persona legal");
@@ -79,7 +94,7 @@ tiene("persona natural","ci");
 puede("mamifero","lactar");
 puede("bipedo","caminar erguido");
 puede("humano","razonar");
-
+=cut
 
 
 print "\n---------GRAFO---------\n$graph\n-----------------------\n";
