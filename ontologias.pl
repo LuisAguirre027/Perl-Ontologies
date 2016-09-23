@@ -31,7 +31,7 @@ sub puede{
 	hecho($_[0],$_[1],"puede");
 }
 
-sub consulta{
+sub consulta_individual{
 	if ($ontograph->is_reachable($_[0],$_[1])){
 		
 		foreach my $v1 ( $ontograph->all_reachable( $_[0] ) ){
@@ -52,6 +52,57 @@ sub consulta{
 	return 0;
 }
 
+sub consulta_multiple_arriba{
+	
+	my @vertices = $ontograph->all_reachable( $_[0] );
+	push @vertices, $_[0];
+	
+	my @ret;
+	
+	
+	foreach my $v1 ( @vertices ) {
+		foreach my $v2 ( $ontograph->all_neighbours( $v1 ) ) {
+			my $edge_attribute = $ontograph->get_edge_attribute($v1,$v2,"tipo") || "";
+			if ( $edge_attribute eq $_[1] ){
+				push @ret, $v2;
+			}
+		}
+		
+	}
+	
+	@ret;
+}
+
+sub consulta_multiple_abajo{
+	
+	my @vertices = $ontograph->unique_vertices;
+	
+	my @ret;
+	
+	foreach my $v1 ( @vertices ) {
+		foreach my $v2 ( $ontograph->all_neighbours( $v1 ) ) {
+			
+			my $edge_attribute = $ontograph->get_edge_attribute($v1,$v2,"tipo") || "";
+			
+			if (($edge_attribute eq $_[1])
+			and ( $ontograph->is_reachable($v2,$_[0])) ){
+				push @ret, $v1;
+			}
+		}
+	}
+	@ret;
+}
+
+
+sub consulta{
+	if (($_[0]) and ($_[1]))
+	{return consulta_individual($_[0],$_[1],$_[2]);}
+	elsif ($_[0])
+	{return consulta_multiple_arriba($_[0],$_[2]);}
+	else
+	{return consulta_multiple_abajo($_[1],$_[2]);}
+}
+
 sub pertenece{
 	return consulta($_[0],$_[1],"es")
 }
@@ -63,6 +114,7 @@ sub posee{
 sub hace{
 	return consulta($_[0],$_[1],"puede")
 }
+
 
 ########
 
@@ -83,8 +135,11 @@ while (my $row = <$fh>) {
  
 print "\n---------GRAFO---------\n $ontograph \n-----------------------\n";
 
-print pertenece("platon", "persona_legal"); #1
+print join ", ", pertenece("platon",undef); #ARRAY
 print "\n";
 
-print pertenece("platon", "persona_juridica"); #0
+print join ", ", pertenece(undef, "mamifero"); #ARRAY
+print "\n";
+
+print pertenece("platon", "humano"); #1 ???
 print "\n";
