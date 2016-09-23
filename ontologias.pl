@@ -2,23 +2,21 @@
 use strict; use warnings;
 
 use Graph;
-use Graph::Undirected;
 use Graph::Directed;
 
-
-my $graph = Graph::Directed->new();
+my $ontograph = Graph::Directed->new();
 
 sub crear_inexistentes {
 	foreach my $v (@_){
-		if (!$graph->has_vertex ($v)){
-			$graph->add_vertex($v);
+		if (!$ontograph->has_vertex ($v)){
+			$ontograph->add_vertex($v);
 		}
 	}
 }
 
 sub hecho{
 	crear_inexistentes($_[0],$_[1]);
-	$graph->set_edge_attribute($_[0],$_[1],"tipo",$_[2]);
+	$ontograph->set_edge_attribute($_[0],$_[1],"tipo",$_[2]);
 }
 
 sub es{
@@ -34,15 +32,17 @@ sub puede{
 }
 
 sub consulta{
-	if ($graph->is_reachable($_[0],$_[1])){
-		foreach my $v1 ($graph->vertices){
-			foreach my $v2 ($graph->vertices){
+	if ($ontograph->is_reachable($_[0],$_[1])){
+		
+		foreach my $v1 ( $ontograph->all_reachable( $_[0] ) ){
+			foreach my $v2 ( $ontograph->all_neighbours( $v1 ) ) {
+				
+				my $edge_attribute = $ontograph->get_edge_attribute($v1,$v2,"tipo") || "";
 
-				if ( 
-					($graph->is_reachable($_[0],$v1))
-				and ($graph->is_reachable($v2,$_[1])) 
-				and ( $graph->get_edge_attribute($v1,$v2,"tipo") ~~ $_[2]) #smart match
-				){
+				if	( 
+							($ontograph->is_reachable($v2,$_[1]))
+							and ($edge_attribute eq $_[2])
+						){
 					return 1;
 				}
 			}
@@ -64,6 +64,8 @@ sub hace{
 	return consulta($_[0],$_[1],"puede")
 }
 
+########
+
 my $filename = 'data.txt';
 open(my $fh, '<:encoding(UTF-8)', $filename)
   or die "Could not open file '$filename' $!";
@@ -72,35 +74,17 @@ while (my $row = <$fh>) {
   chomp $row;
   next if $row =~ /^\s*$/;
   my @var = split /[(,).\n]+/, $row;
-  #$var[0]($var[1],$var[2]);
+  # $var[0]($var[1],$var[2]);
   # start a new scope to keep the effect of "no strict" small
   my $generic=$var[0];
   no strict 'refs';
   &$generic($var[1], $var[2]);
  }
-=pod
-es("platon","humano");
-es("humano","persona natural");
-es("persona natural","persona legal");
-es("persona juridica","persona legal");
-es("humano","bipedo");
-es("bipedo","mamifero");
+ 
+print "\n---------GRAFO---------\n $ontograph \n-----------------------\n";
 
-tiene("persona legal","derechos");
-tiene("persona legal","deberes");
-tiene("persona juridica","rif");
-tiene("persona natural","ci");
-
-puede("mamifero","lactar");
-puede("bipedo","caminar erguido");
-puede("humano","razonar");
-=cut
-
-
-print "\n---------GRAFO---------\n$graph\n-----------------------\n";
-
-print pertenece("platon", "persona legal"); #1
+print pertenece("platon", "persona_legal"); #1
 print "\n";
 
-print pertenece("platon", "persona juridica"); #0
+print pertenece("platon", "persona_juridica"); #0
 print "\n";
