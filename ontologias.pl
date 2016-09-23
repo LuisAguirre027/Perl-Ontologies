@@ -33,8 +33,9 @@ sub puede{
 
 sub consulta_individual{
 	if ($ontograph->is_reachable($_[0],$_[1])){
-		
-		foreach my $v1 ( $ontograph->all_reachable( $_[0] ) ){
+		my @vertices = $ontograph->all_reachable( $_[0] );
+		push @vertices, $_[0];
+		foreach my $v1 ( @vertices ){
 			foreach my $v2 ( $ontograph->all_neighbours( $v1 ) ) {
 				
 				my $edge_attribute = $ontograph->get_edge_attribute($v1,$v2,"tipo") || "";
