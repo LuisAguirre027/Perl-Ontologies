@@ -18,18 +18,12 @@ use Graph::AdjacencyMap qw(:flags :fields);
 
 use vars qw($VERSION);
 
-$VERSION = '0.9704';
+$VERSION = '0.96_01';
 
 require 5.006; # Weak references are absolutely required.
 
 my $can_deep_copy_Storable =
-  eval {
-    require Storable;
-    require B::Deparse;
-    Storable->VERSION(2.05);
-    B::Deparse->VERSION(0.61);
-    1;
-  };
+    eval 'require Storable; require B::Deparse; $Storable::VERSION >= 2.05 && $B::Deparse::VERSION >= 0.61' && !$@;
 
 sub _can_deep_copy_Storable () {
     return $can_deep_copy_Storable;
@@ -63,15 +57,11 @@ sub _P () { 7 } # Predecessors.
 my $Inf;
 
 BEGIN {
-  if ($] >= 5.022) {
-    $Inf = eval '+"Inf"';
-  } else {
-    local $SIG{FPE};
+    local $SIG{FPE}; 
     eval { $Inf = exp(999) } ||
 	eval { $Inf = 9**9**9 } ||
 	    eval { $Inf = 1e+999 } ||
 		{ $Inf = 1e+99 };  # Close enough for most practical purposes.
-  }
 }
 
 sub Infinity () { $Inf }
@@ -122,17 +112,12 @@ sub eq {
     "$_[0]" eq "$_[1]"
 }
 
-sub boolify {
-  1;  # Important for empty graphs: they stringify to "", which is false.
-}
-
 sub ne {
     "$_[0]" ne "$_[1]"
 }
 
 use overload
     '""' => \&stringify,
-    'bool' => \&boolify,
     'eq' => \&eq,
     'ne' => \&ne;
 
@@ -388,9 +373,6 @@ sub _union_find_add_vertex {
 
 sub add_vertex {
     my $g = shift;
-    if (@_ != 1) {
-      $g->expect_hypervertexed;
-    }
     if ($g->is_multivertexed) {
 	return $g->add_vertex_by_id(@_, _GEN_ID);
     }
@@ -509,15 +491,18 @@ sub _union_find_add_edge {
 
 sub add_edge {
     my $g = shift;
-    if (@_ != 2) {
-      $g->expect_hyperedged;
-    }
     if ($g->is_multiedged) {
 	unless (@_ == 2 || $g->is_hyperedged) {
 	    require Carp;
 	    Carp::croak("Graph::add_edge: use add_edges for more than one edge");
 	}
 	return $g->add_edge_by_id(@_, _GEN_ID);
+    }
+    unless (@_ == 2) {
+	unless ($g->is_hyperedged) {
+	    require Carp;
+	    Carp::croak("Graph::add_edge: graph is not hyperedged");
+	}
     }
     my @e = $g->_add_edge( @_ );
     $g->[ _E ]->set_path( @e );
@@ -1010,15 +995,9 @@ sub delete_vertex {
     $g->expect_non_unionfind;
     my $V = $g->[ _V ];
     return $g unless $V->has_path( @_ );
-    if (@_ == 1 && !($g->[ _f ] & (_HYPER|_REF|_UNIQ))) {
-      $g->delete_edge($_[0], $_) for $g->successors($_[0]);
-      $g->delete_edge($_, $_[0]) for $g->predecessors($_[0]);
-    } else {
-      # TODO: _edges_at is excruciatingly slow (rt.cpan.org 92427)
-      my $E = $g->[ _E ];
-      for my $e ( $g->_edges_at( @_ ) ) {
-        $E->_del_id( $e->[ 0 ] );
-      }
+    my $E = $g->[ _E ];
+    for my $e ( $g->_edges_at( @_ ) ) {
+	$E->_del_id( $e->[ 0 ] );
     }
     $V->del_path( @_ );
     $g->[ _G ]++;
@@ -1282,8 +1261,6 @@ sub has_cycle {
     my $g = shift;
     @_ ? ($g->has_path(@_, $_[0]) ? 1 : 0) : 0;
 }
-
-*has_this_cycle = \&has_cycle;
 
 sub has_a_cycle {
     my $g = shift;
@@ -1843,28 +1820,6 @@ sub complement_graph {
 
 *complete = \&complete_graph;
 
-sub subgraph {
-  my ($g, $src, $dst) = @_;
-  $dst = $src unless defined $dst;
-  unless (ref $src eq 'ARRAY' && ref $dst eq 'ARRAY') {
-    Carp::croak("Graph::subgraph: need src and dst array references");
-  }
-  my $s = $g->new;
-  my @u = grep { $g->has_vertex($_) } @$src;
-  my @v = grep { $g->has_vertex($_) } @$dst;
-  $s->add_vertices(@u, @v);
-  for my $u (@u) {
-    my @e;
-    for my $v (@v) {
-      if ($g->has_edge($u, $v)) {
-        push @e, [$u, $v];
-      }
-    }
-    $s->add_edges(@e);
-  }
-  return $s;
-}
-
 ###
 # Transitivity.
 #
@@ -2126,13 +2081,6 @@ sub _expected {
     }
 }
 
-sub expect_no_args {
-    my $g = shift;
-    return unless @_;
-    my @caller1 = caller(1);
-    die "$caller1[3]: expected no arguments, got " . scalar @_ . ", at $caller1[1] line $caller1[2]\n";
-}
-
 sub expect_undirected {
     my $g = shift;
     _expected('undirected') unless $g->is_undirected;
@@ -2154,16 +2102,6 @@ sub expect_dag {
     push @got, 'undirected' unless $g->is_directed;
     push @got, 'cyclic'     unless $g->is_acyclic;
     _expected('directed acyclic', "@got") if @got;
-}
-
-sub expect_hypervertexed {
-    my $g = shift;
-    _expected('hypervertexed') unless $g->is_hypervertexed;
-}
-
-sub expect_hyperedged {
-    my $g = shift;
-    _expected('hyperedged') unless $g->is_hyperedged;
 }
 
 sub expect_multivertexed {
@@ -2415,11 +2353,10 @@ sub _root_opt {
     my $next =
 	exists $opt{ next_root } ?
 	    $opt{ next_root } :
-              $opt{ next_alphabetic } ?
-                \&_next_alphabetic :
-                  $opt{ next_numeric } ?
-                    \&_next_numeric :
-                      \&_next_random;
+		$opt{ next_alphabetic } ?
+		    \&_next_alphabetic :
+			$opt{ next_numeric } ? \&_next_numeric :
+			    \&_next_random;
     my $code = ref $next eq 'CODE';
     my $attr = exists $opt{ attribute } ? $opt{ attribute } : $defattr;
     return ( \%opt, \%unseen, \@unseen, $r, $next, $code, $attr );
@@ -2432,7 +2369,7 @@ sub _heap_walk {
     my $HF = Heap071::Fibonacci->new;
 
     while (defined $r) {
-        # print "r = $r\n";
+	# print "r = $r\n";
 	$add->($g, $h, $HF, $r, $attr, $unseenh, $etc);
 	delete $unseenh->{ $r };
 	while (defined $HF->top) {
@@ -2450,7 +2387,6 @@ sub _heap_walk {
 	}
 	return $h unless defined $next;
 	$r = $code ? $next->( $g, $unseenh ) : shift @$unseena;
-        last unless defined $r;
     }
 
     return $h;
@@ -3430,9 +3366,7 @@ sub SPT_Dijkstra {
 	$opt{ first_root } = $first_root = $g->random_vertex();
     }
     my $spt_di = $g->get_graph_attribute('_spt_di');
-    unless (defined $spt_di &&
-            exists $spt_di->{ $first_root } &&
-            $spt_di->{ $first_root }->[ 0 ] == $g->[ _G ]) {
+    unless (defined $spt_di && exists $spt_di->{ $first_root } && $spt_di->{ $first_root }->[ 0 ] == $g->[ _G ]) {
 	my %etc;
 	my $sptg = $g->_heap_walk($g->new, \&_SPT_add, \%etc, %opt);
 	$spt_di->{ $first_root } = [ $g->[ _G ], $sptg ];
@@ -3754,7 +3688,7 @@ sub vertex_eccentricity {
 		$max = $l;
 	    }
 	}
-	return defined $max ? $max : Infinity();
+	return $max;
     } else {
 	return Infinity();
     }
@@ -3779,7 +3713,6 @@ sub shortest_path {
 		    @min = $t->path_vertices($u, $v);
 		}
 	    }
-            print "min/1 = @min\n";
 	    return wantarray ? @min : $min;
 	}
     } else {
@@ -3794,13 +3727,10 @@ sub shortest_path {
 		    @min = $t->path_vertices($u, $v);
 		}
 	    }
-            print "min/2 = @min\n";
 	    return wantarray ? @min : $min;
 	} else {
 	    my ($min, $max, $minp, $maxp) = $g->_minmax_path(@_);
-	    return defined $minp
-              ? (wantarray ? @$minp : $min)
-              : wantarray ? () : undef;
+	    return defined $minp ? (wantarray ? @$minp : $min) : undef;
 	}
     }
 }
@@ -3822,12 +3752,11 @@ sub center_vertices {
     $delta = 0 unless defined $delta;
     $delta = abs($delta);
     my @c;
-    my $Inf = Infinity();
     my $r = $g->radius;
-    if (defined $r && $r != $Inf) {
+    if (defined $r) {
 	for my $v ($g->vertices) {
 	    my $e = $g->vertex_eccentricity($v);
-	    next unless defined $e && $e != $Inf;
+	    next unless defined $e;
 	    push @c, $v if abs($e - $r) <= $delta;
 	}
     }
